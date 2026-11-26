@@ -1,0 +1,209 @@
+module uart_avalon_32bit_ip (
+    input  wire        clk,
+    input  wire        reset_n,
+
+    // Giao diện Avalon-MM Slave (Zero-Waitstate)
+    input  wire [2:0]  avs_s0_address,
+    input  wire        avs_s0_read,
+    input  wire        avs_s0_write,
+    input  wire [31:0] avs_s0_writedata,
+    output reg  [31:0] avs_s0_readdata,
+    output wire        avs_s0_waitrequest,
+
+    // Giao diện Ngắt (Interrupt Sender)
+    output wire        ins_irq0_irq,
+
+    // Giao diện DMA Handshake (Conduit / DMA Request)
+    output wire        dma_tx_req,
+    output wire        dma_rx_req,
+
+    // Chân ngoại vi UART & LED Debug trên Kit DE2 (Conduit)
+    output wire        coe_uart_tx,
+    input  wire        coe_uart_rx,
+    output wire [1:0]  coe_error_led // [0]: SEC, [1]: DED
+);
+    assign avs_s0_waitrequest = 1'b0; // Phản hồi Zero-waitstate
+
+    // --- Tập thanh ghi CSR ---
+    reg [31:0] reg_tx_data;
+    reg [31:0] reg_rx_data;
+    reg [31:0] reg_control; // [0]:TX_START, [1]:IRQ_EN, [2]:DMA_TX_EN, [3]:DMA_RX_EN, [4]:LOOPBACK
+    reg [15:0] reg_baud;    // Mặc định = 27 (115200 bps @ 50MHz)
+    reg [15:0] sec_err_cnt;
+    reg [15:0] ded_err_cnt;
+    reg [31:0] reg_err_inj; // [5:0]: Vị trí bit bắt đầu tiêm lỗi, [11:8]: Mặt nạ chùm lỗi 4-bit (VD: 4'b1111)
+
+    // Cờ trạng thái trong STATUS_REG
+    reg        rx_ready_flag;
+    reg        sec_flag;
+    reg        ded_flag;
+    reg        frame_err_flag;
+
+    // Dây kết nối nội bộ
+    wire        tx_tick, rx_tick;
+    wire        pipe_tx_valid, tx_busy_w, tx_done_w;
+    wire [51:0] interleaved_52_w;
+    wire        rx_raw_done, frame_err_w;
+    wire [51:0] rx_raw_52_w, rx_injected_52_w;
+    wire        pipe_rx_valid;
+    wire [31:0] decoded_32_w;
+    wire [2:0]  sec_inc_w, ded_inc_w;
+
+    reg         tx_trigger;
+
+    // 1. Khối tạo xung Baudrate
+    baud_rate_gen_dynamic u_brg (
+        .clk                (clk),
+        .rst_n              (reset_n),
+        .baud_div           (reg_baud),
+        .tx_baud_tick       (tx_tick),
+        .rx_oversample_tick (rx_tick)
+    );
+
+    // 2. Pipeline Phát 3 Tầng
+    tx_interleaved_pipeline u_tx_pipe (
+        .clk                (clk),
+        .rst_n              (reset_n),
+        .start_in           (tx_trigger),
+        .data_in_32         (reg_tx_data),
+        .valid_out          (pipe_tx_valid),
+        .interleaved_out_52 (interleaved_52_w)
+    );
+
+    // 3. Bộ phát UART 52-bit
+    uart_tx_52bit u_tx (
+        .clk           (clk),
+        .rst_n         (reset_n),
+        .tx_baud_tick  (tx_tick),
+        .tx_start      (pipe_tx_valid),
+        .tx_data_in    (interleaved_52_w),
+        .tx_pin        (coe_uart_tx),
+        .tx_busy       (tx_busy_w),
+        .tx_done_pulse (tx_done_w)
+    );
+
+    // 4. Chọn đường nhận (External RX Pin hoặc Internal Loopback để test)
+    wire serial_rx_in = reg_control[4] ? coe_uart_tx : coe_uart_rx;
+
+    // 5. Bộ thu UART 52-bit (2-FF Sync + 3-Sample Voter)
+    uart_rx_52bit u_rx (
+        .clk                (clk),
+        .rst_n              (reset_n),
+        .rx_oversample_tick (rx_tick),
+        .rx_pin             (serial_rx_in),
+        .rx_data_out        (rx_raw_52_w),
+        .rx_done            (rx_raw_done),
+        .framing_error      (frame_err_w)
+    );
+
+    // 6. Khối tiêm lỗi chùm (Burst Error Injector) phục vụ Demo và Kiểm thử
+    // Dịch mặt nạ lỗi 4-bit (reg_err_inj[11:8]) đến vị trí bit mong muốn (reg_err_inj[5:0])
+    wire [51:0] error_mask_52 = ({48'd0, reg_err_inj[11:8]} << reg_err_inj[5:0]);
+    assign rx_injected_52_w   = rx_raw_52_w ^ error_mask_52;
+
+    // 7. Pipeline Thu 3 Tầng
+    rx_deinterleaved_pipeline u_rx_pipe (
+        .clk         (clk),
+        .rst_n       (reset_n),
+        .rx_done_in  (rx_raw_done),
+        .rx_bits_52  (rx_injected_52_w),
+        .valid_out   (pipe_rx_valid),
+        .data_out_32 (decoded_32_w),
+        .sec_cnt_inc (sec_inc_w),
+        .ded_cnt_inc (ded_inc_w)
+    );
+
+    // --- Logic Ghi & Cập nhật Thanh ghi Avalon-MM ---
+    always @(posedge clk or negedge reset_n) begin
+        if (!reset_n) begin
+            reg_tx_data    <= 32'd0;
+            reg_rx_data    <= 32'd0;
+            reg_control    <= 32'd0;
+            reg_baud       <= 16'd27; // Mặc định 115200 bps @ 50MHz
+            sec_err_cnt    <= 16'd0;
+            ded_err_cnt    <= 16'd0;
+            reg_err_inj    <= 32'd0;
+            rx_ready_flag  <= 1'b0;
+            sec_flag       <= 1'b0;
+            ded_flag       <= 1'b0;
+            frame_err_flag <= 1'b0;
+            tx_trigger     <= 1'b0;
+        end else begin
+            tx_trigger <= 1'b0; // Mặc định xung kích phát chỉ kéo dài 1 clk
+
+            // Cập nhật dữ liệu và cờ lỗi khi Pipeline Thu hoàn tất
+            if (pipe_rx_valid) begin
+                reg_rx_data   <= decoded_32_w;
+                rx_ready_flag <= 1'b1;
+                if (sec_inc_w > 0) begin
+                    sec_flag    <= 1'b1;
+                    sec_err_cnt <= sec_err_cnt + sec_inc_w;
+                end
+                if (ded_inc_w > 0) begin
+                    ded_flag    <= 1'b1;
+                    ded_err_cnt <= ded_err_cnt + ded_inc_w;
+                end
+            end
+
+            if (rx_raw_done && frame_err_w) begin
+                frame_err_flag <= 1'b1;
+            end
+
+            // Khi CPU hoặc DMA đọc thanh ghi DATA_REG (Offset 0) -> Tự động hạ cờ RX_READY
+            if (avs_s0_read && (avs_s0_address == 3'd0)) begin
+                rx_ready_flag <= 1'b0;
+            end
+
+            // Xử lý lệnh Ghi từ Bus Avalon-MM
+            if (avs_s0_write) begin
+                case (avs_s0_address)
+                    3'd0: begin // DATA_REG: Ghi dữ liệu vào sẽ tự động kích hoạt phát TX
+                        reg_tx_data <= avs_s0_writedata;
+                        if (!tx_busy_w) tx_trigger <= 1'b1;
+                    end
+                    3'd1: begin // STATUS_REG: Cơ chế W1C (Write-1-to-Clear)
+                        if (avs_s0_writedata[1]) rx_ready_flag  <= 1'b0;
+                        if (avs_s0_writedata[2]) sec_flag       <= 1'b0;
+                        if (avs_s0_writedata[3]) ded_flag       <= 1'b0;
+                        if (avs_s0_writedata[4]) frame_err_flag <= 1'b0;
+                    end
+                    3'd2: begin // CONTROL_REG
+                        reg_control <= avs_s0_writedata;
+                        if (avs_s0_writedata[0] && !tx_busy_w) tx_trigger <= 1'b1;
+                    end
+                    3'd3: begin // BAUD_REG
+                        reg_baud <= avs_s0_writedata[15:0];
+                    end
+                    3'd4: begin // ERR_CNT_REG (Ghi vào để xóa bộ đếm lỗi)
+                        sec_err_cnt <= avs_s0_writedata[15:0];
+                        ded_err_cnt <= avs_s0_writedata[31:16];
+                    end
+                    3'd5: begin // ERR_INJ_REG
+                        reg_err_inj <= avs_s0_writedata;
+                    end
+                    default: ;
+                endcase
+            end
+        end
+    end
+
+    // --- Logic Đọc Thanh ghi Avalon-MM ---
+    always @(*) begin
+        case (avs_s0_address)
+            3'd0: avs_s0_readdata = reg_rx_data;
+            3'd1: avs_s0_readdata = {27'd0, frame_err_flag, ded_flag, sec_flag, rx_ready_flag, tx_busy_w};
+            3'd2: avs_s0_readdata = reg_control;
+            3'd3: avs_s0_readdata = {16'd0, reg_baud};
+            3'd4: avs_s0_readdata = {ded_err_cnt, sec_err_cnt};
+            3'd5: avs_s0_readdata = reg_err_inj;
+            default: avs_s0_readdata = 32'd0;
+        endcase
+    end
+
+    // --- Tín hiệu Ngắt (IRQ) và DMA Handshake ---
+    assign ins_irq0_irq = reg_control[1] & (rx_ready_flag | sec_flag | ded_flag | frame_err_flag);
+    assign dma_tx_req   = reg_control[2] & (~tx_busy_w);
+    assign dma_rx_req   = reg_control[3] & rx_ready_flag;
+    assign coe_error_led = {ded_flag, sec_flag};
+
+endmodule

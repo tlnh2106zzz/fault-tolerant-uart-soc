@@ -1,0 +1,61 @@
+module uart_tx_52bit (
+    input  wire        clk,
+    input  wire        rst_n,
+    input  wire        tx_baud_tick,
+    input  wire        tx_start,
+    input  wire [51:0] tx_data_in,
+    output reg         tx_pin,
+    output reg         tx_busy,
+    output reg         tx_done_pulse
+);
+    reg [1:0]  state;
+    reg [5:0]  bit_cnt;
+    reg [51:0] data_reg;
+    reg        start_pending;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            tx_pin        <= 1'b1;
+            tx_busy       <= 1'b0;
+            tx_done_pulse <= 1'b0;
+            state         <= 2'd0;
+            bit_cnt       <= 6'd0;
+            data_reg      <= 52'd0;
+            start_pending <= 1'b0;
+        end else begin
+            tx_done_pulse <= 1'b0;
+
+            // Bắt xung tx_start từ pipeline (ngay cả khi chưa tới tx_baud_tick)
+            if (tx_start && !tx_busy) begin
+                data_reg      <= tx_data_in;
+                start_pending <= 1'b1;
+                tx_busy       <= 1'b1;
+            end
+
+            if (tx_baud_tick) begin
+                case (state)
+                    2'd0: begin
+                        if (start_pending) begin
+                            start_pending <= 1'b0;
+                            tx_pin        <= 1'b0; // Start bit
+                            bit_cnt       <= 6'd51;
+                            state         <= 2'd1;
+                        end
+                    end
+                    2'd1: begin
+                        tx_pin <= data_reg[bit_cnt];
+                        if (bit_cnt == 6'd0) state <= 2'd2;
+                        else bit_cnt <= bit_cnt - 6'd1;
+                    end
+                    2'd2: begin
+                        tx_pin        <= 1'b1; // Stop bit
+                        tx_busy       <= 1'b0;
+                        tx_done_pulse <= 1'b1;
+                        state         <= 2'd0;
+                    end
+                    default: state <= 2'd0;
+                endcase
+            end
+        end
+    end
+endmodule

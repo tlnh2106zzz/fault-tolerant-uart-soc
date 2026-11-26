@@ -1,0 +1,69 @@
+module tx_interleaved_pipeline (
+    input  wire        clk,
+    input  wire        rst_n,
+    input  wire        start_in,
+    input  wire [31:0] data_in_32,
+    output reg         valid_out,
+    output reg  [51:0] interleaved_out_52
+);
+    // --- Stage 1 Registers (Input Latch) ---
+    reg [31:0] s1_data;
+    reg        s1_valid;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            s1_data  <= 32'd0;
+            s1_valid <= 1'b0;
+        end else begin
+            s1_valid <= start_in;
+            if (start_in) s1_data <= data_in_32;
+        end
+    end
+
+    // --- Stage 2 Registers (4x Parallel Hamming Encoding) ---
+    wire [12:0] cw0_w, cw1_w, cw2_w, cw3_w;
+    hamming_encoder_13_8 u_enc0 (.data_in(s1_data[7:0]),   .codeword_out(cw0_w));
+    hamming_encoder_13_8 u_enc1 (.data_in(s1_data[15:8]),  .codeword_out(cw1_w));
+    hamming_encoder_13_8 u_enc2 (.data_in(s1_data[23:16]), .codeword_out(cw2_w));
+    hamming_encoder_13_8 u_enc3 (.data_in(s1_data[31:24]), .codeword_out(cw3_w));
+
+    reg [12:0] s2_cw0, s2_cw1, s2_cw2, s2_cw3;
+    reg        s2_valid;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            s2_cw0   <= 13'd0; s2_cw1 <= 13'd0;
+            s2_cw2   <= 13'd0; s2_cw3 <= 13'd0;
+            s2_valid <= 1'b0;
+        end else begin
+            s2_valid <= s1_valid;
+            if (s1_valid) begin
+                s2_cw0 <= cw0_w; s2_cw1 <= cw1_w;
+                s2_cw2 <= cw2_w; s2_cw3 <= cw3_w;
+            end
+        end
+    end
+
+    // --- Stage 3 Registers (Matrix Interleaving 4x13) ---
+    // Mỗi cột i (i = 0..12) gồm 4 bit từ 4 codeword: {cw3[i], cw2[i], cw1[i], cw0[i]}
+    wire [51:0] interleaved_w;
+    genvar i;
+    generate
+        for (i = 0; i < 13; i = i + 1) begin : gen_interleave
+            assign interleaved_w[i*4 + 0] = s2_cw0[i];
+            assign interleaved_w[i*4 + 1] = s2_cw1[i];
+            assign interleaved_w[i*4 + 2] = s2_cw2[i];
+            assign interleaved_w[i*4 + 3] = s2_cw3[i];
+        end
+    endgenerate
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            interleaved_out_52 <= 52'd0;
+            valid_out          <= 1'b0;
+        end else begin
+            valid_out <= s2_valid;
+            if (s2_valid) interleaved_out_52 <= interleaved_w;
+        end
+    end
+endmodule

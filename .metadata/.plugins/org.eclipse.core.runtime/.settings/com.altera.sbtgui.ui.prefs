@@ -1,0 +1,4 @@
+eclipse.preferences.version=1
+newSoftwareExampleWizardPage.defaultLocation=/home/hugo/Documents/SoC/DoAn/DoAnMonHoc/software/uart_fault_tolerant_test
+newSoftwareExampleWizardPage.sopcinfoFile=/home/hugo/Documents/SoC/DoAn/DoAnMonHoc/system.sopcinfo
+newSoftwareExampleWizardPage2.newBspLocation=/home/hugo/Documents/SoC/DoAn/DoAnMonHoc/software/uart_fault_tolerant_test_bsp

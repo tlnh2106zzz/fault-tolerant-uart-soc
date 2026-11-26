@@ -1,0 +1,9 @@
+db/
+incremental_db/
+greybox_tmp/
+hc_output/
+work/
+transcript
+vsim.wlf
+**/*_bsp/
+**/obj/

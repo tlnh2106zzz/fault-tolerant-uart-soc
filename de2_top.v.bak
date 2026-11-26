@@ -1,0 +1,20 @@
+module de2_top (
+    input  wire        CLOCK_50,      // Xung nhịp 50 MHz trên Kit DE2
+    input  wire [0:0]  KEY,           // Nút nhấn KEY[0] làm nút Reset (tích cực mức 0)
+    output wire [1:0]  LEDR,          // Đèn LED đỏ hiển thị trạng thái lỗi SEC (LEDR[0]) và DED (LEDR[1])
+    output wire        UART_TXD,      // Chân phát UART nối tiếp ra cổng RS232 / GPIO
+    input  wire        UART_RXD       // Chân thu UART nối tiếp từ cổng RS232 / GPIO
+);
+
+    // Dây nội bộ cho tín hiệu yêu cầu DMA (nếu không xuất ra chân ngoài board)
+    wire dma_tx_req_w;
+    wire dma_rx_req_w;
+
+    // Khởi tạo hệ thống SoC đã sinh từ Qsys (tên module trùng với tên file system.qsys)
+    system u_soc_system (
+        .clk_clk                                      (CLOCK_50),
+        .reset_reset_n                                (KEY[0]),
+        .uart_avalon_32_bit_ip_0_conduit_end_0_export ({dma_rx_req_w, dma_tx_req_w, LEDR[1:0], UART_RXD, UART_TXD})
+    );
+
+endmodule

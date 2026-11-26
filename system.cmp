@@ -1,0 +1,12 @@
+	component system is
+		port (
+			clk_clk                                             : in  std_logic                    := 'X'; -- clk
+			reset_reset_n                                       : in  std_logic                    := 'X'; -- reset_n
+			uart_avalon_32_bit_ip_0_conduit_end_0_coe_uart_tx   : out std_logic;                           -- coe_uart_tx
+			uart_avalon_32_bit_ip_0_conduit_end_0_coe_uart_rx   : in  std_logic                    := 'X'; -- coe_uart_rx
+			uart_avalon_32_bit_ip_0_conduit_end_0_coe_error_led : out std_logic_vector(1 downto 0);        -- coe_error_led
+			uart_avalon_32_bit_ip_0_conduit_end_0_dma_tx_req    : out std_logic;                           -- dma_tx_req
+			uart_avalon_32_bit_ip_0_conduit_end_0_dma_rx_req    : out std_logic                            -- dma_rx_req
+		);
+	end component system;
+

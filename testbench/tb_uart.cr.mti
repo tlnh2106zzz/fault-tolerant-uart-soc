@@ -1,0 +1,57 @@
+{/home/hugo/Documents/SoC/Do An/DoAnMonHoc/uart_tx_52bit.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/uart_tx_52bit.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module uart_tx_52bit
+
+Top level modules:
+	uart_tx_52bit
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/baud_rate_gen_dynamic.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/baud_rate_gen_dynamic.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module baud_rate_gen_dynamic
+
+Top level modules:
+	baud_rate_gen_dynamic
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/uart_rx_52bit.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/uart_rx_52bit.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module uart_rx_52bit
+
+Top level modules:
+	uart_rx_52bit
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/rx_deinterleaved_pipeline.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/rx_deinterleaved_pipeline.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module rx_deinterleaved_pipeline
+
+Top level modules:
+	rx_deinterleaved_pipeline
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/hamming_encoder_13_8.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/hamming_encoder_13_8.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module hamming_encoder_13_8
+
+Top level modules:
+	hamming_encoder_13_8
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/testbench/tb_uart_fault_tolerant.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/testbench/tb_uart_fault_tolerant.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module tb_uart_fault_tolerant
+
+Top level modules:
+	tb_uart_fault_tolerant
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/uart_avalon_32bit_ip.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/uart_avalon_32bit_ip.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module uart_avalon_32bit_ip
+
+Top level modules:
+	uart_avalon_32bit_ip
+
+} {} {}} {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/tx_interleaved_pipeline.v} {1 {vlog -work work {/home/hugo/Documents/SoC/Do An/DoAnMonHoc/tx_interleaved_pipeline.v}
+Model Technology ModelSim ALTERA vlog 10.1d Compiler 2012.11 Nov  2 2012
+-- Compiling module tx_interleaved_pipeline
+
+Top level modules:
+	tx_interleaved_pipeline
+
+} {} {}}
